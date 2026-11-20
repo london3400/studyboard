@@ -1,0 +1,52 @@
+# Keeps the Studyboard website up to date:
+# downloads the school test calendar + lunch menu a few times a day and publishes the site.
+name: Update calendar and publish
+
+on:
+  schedule:
+    - cron: '17 4,10,16 * * *'   # about 05:17, 11:17 and 17:17 Swedish time (winter)
+  workflow_dispatch:              # "Run workflow" button on GitHub
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the school calendar and lunch menu
+        run: bash scripts/update-calendar.sh
+        env:
+          TZ: Europe/Stockholm
+
+      - name: Save the new data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add calendar-data.js
+          if ! git diff --cached --quiet; then
+            git commit -m "Update school calendar and lunch menu"
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
